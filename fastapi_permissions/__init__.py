@@ -189,11 +189,11 @@ async def has_permission(
     """
     acl = await normalize_acl(resource)
 
-    for action, principal, permissions in acl:
+    for action, principals, permissions in acl:
         if isinstance(permissions, str):
             permissions = {permissions}
         if requested_permission in permissions:
-            if principal in user_principals:
+            if all(principal in user_principals for principal in principals):
                 return action == Allow
     return False
 
