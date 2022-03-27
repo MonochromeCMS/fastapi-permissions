@@ -162,10 +162,10 @@ def permission_dependency_factory(
     # to get the caller signature right, we need to add only the resource and
     # user dependable in the definition
     # the permission itself is available through the outer function scope
-    def permission_dependency(
+    async def permission_dependency(
         resource=dependable_resource, principals=active_principals_func
     ):
-        if has_permission(principals, permission, resource):
+        if await has_permission(principals, permission, resource):
             return resource
         if Authenticated not in principals:
             raise auth_exception
@@ -174,7 +174,7 @@ def permission_dependency_factory(
     return Depends(permission_dependency)
 
 
-def has_permission(
+async def has_permission(
     user_principals: list, requested_permission: str, resource: Any
 ):
     """ checks if a user has the permission for a resource
@@ -187,7 +187,7 @@ def has_permission(
 
     returns bool: permission granted or denied
     """
-    acl = normalize_acl(resource)
+    acl = await normalize_acl(resource)
 
     for action, principal, permissions in acl:
         if isinstance(permissions, str):
@@ -198,7 +198,7 @@ def has_permission(
     return False
 
 
-def list_permissions(user_principals: list, resource: Any):
+async def list_permissions(user_principals: list, resource: Any):
     """ lists all permissions of a user for a resouce
 
     user_principals: the principals of a user
@@ -207,21 +207,21 @@ def list_permissions(user_principals: list, resource: Any):
     returns dict: every available permission of the resource as key
                   and True / False as value if the permission is granted.
     """
-    acl = normalize_acl(resource)
+    acl = await normalize_acl(resource)
 
     acl_permissions = (permissions for _, _, permissions in acl)
     as_iterables = ({p} if not is_like_list(p) else p for p in acl_permissions)
-    permissions = set(itertools.chain.from_iterable(as_iterables))
+    permissions = set(chain.from_iterable(as_iterables))
 
     return {
-        str(p): has_permission(user_principals, p, acl) for p in permissions
+        str(p): await has_permission(user_principals, p, acl) for p in permissions
     }
 
 
 # utility functions
 
 
-def normalize_acl(resource: Any):
+async def normalize_acl(resource: Any):
     """ returns the access controll list for a resource
 
     If the resource is not an acl list itself it needs to have an "__acl__"
@@ -232,7 +232,9 @@ def normalize_acl(resource: Any):
     iterable.
     """
     acl = getattr(resource, "__acl__", None)
-    if callable(acl):
+    if iscoroutinefunction(acl):
+        return await acl()
+    elif callable(acl):
         return acl()
     elif acl is not None:
         return acl
